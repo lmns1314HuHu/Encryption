@@ -1,172 +1,370 @@
 package com.yunhao.encryption;
 
-import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.provider.ContactsContract;
 import android.provider.MediaStore;
-import android.support.v4.app.ActivityCompat;
+import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.view.View;
-import android.view.inputmethod.InputMethodManager;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.Toast;
+import android.view.*;
+import android.widget.*;
 
 import java.io.File;
 import java.io.RandomAccessFile;
+import java.util.*;
 
 public class MainActivity extends AppCompatActivity {
+    private boolean firstReadFile = false;
+    private String rightDirectory = "";
 
-    private static final int REQUEST_EXTERNAL_STORAGE = 1;
-    private static String[] PERMISSIONS_STORAGE = {
-            Manifest.permission.READ_EXTERNAL_STORAGE,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-    };
+    private ListView queue;
+    private List<Map<String, Object>> queueList;
+    private SimpleAdapter queueAdapter;
 
-    protected void verifyStoragePermissions(Activity activity) {
-        int permission = ActivityCompat.checkSelfPermission(activity, Manifest.permission.WRITE_EXTERNAL_STORAGE);
-
-        if (permission != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                    activity,
-                    PERMISSIONS_STORAGE,
-                    REQUEST_EXTERNAL_STORAGE
-            );
-        }
-    }
+    private ListView sideFile;
+    private List<Map<String, Object>> sideList;
+    private SimpleAdapter sideAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_identify);
+        setContentView(R.layout.activity_main);
 
-        verifyStoragePermissions(this);
+        initQueue();
+        initFileList();
+        setDrawerLock();
+        btnClickBundle();
+    }
 
-        Button btn = (Button)findViewById(R.id.button);
-        btn.setOnClickListener(new View.OnClickListener() {
+    private void initQueue(){
+        queue = (ListView)findViewById(R.id.queue);
+        queueList = new ArrayList<Map<String, Object>>();
+        queueAdapter = new SimpleAdapter(
+                this,
+                queueList,
+                R.layout.items,
+                new String[]{"img", "name", "path"},
+                new int[]{R.id.image, R.id.title, R.id.path});
+        queue.setAdapter(queueAdapter);
+
+        queue.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
-            public void onClick(View view) {
-                identify();
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                queueList.remove(position);
+                queueAdapter.notifyDataSetChanged();
             }
         });
     }
 
-    protected void identify(){
-        EditText editText1 = (EditText)findViewById(R.id.editText);
-        String passwd = editText1.getText().toString();
+    private void initFileList(){
+        sideFile = (ListView) findViewById(R.id.list_view);
+        sideList = new ArrayList<Map<String, Object>>();
+        sideAdapter = new SimpleAdapter(
+                MainActivity.this,
+                sideList,
+                R.layout.items,
+                new String[] {"img", "name", "img2", "path"},
+                new int[] {R.id.image, R.id.title, R.id.imageright, R.id.path}
+        );
+        sideFile.setAdapter(sideAdapter);
 
-        if(passwd.equals("0624")){
-            InputMethodManager imm = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
-            imm.hideSoftInputFromWindow(getWindow().getDecorView().getWindowToken(), 0);
-            setContentView(R.layout.activity_main);
+        sideFile.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                Map<String,Object> map =  (Map<String, Object>) parent.getItemAtPosition(position);
 
-            Button btn1 = (Button)findViewById(R.id.button1);
-            btn1.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    encryption_btn();
-                }
-            });
-
-            Button btn2 = (Button)findViewById(R.id.button2);
-            btn2.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    decryption_btn();
-                }
-            });
-        }
-        else{
-            Toast.makeText(getApplicationContext(), "Wrong", 1).show();
-        }
-    }
-
-    protected void encryption_btn(){
-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        intent.setType("*/*");
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        startActivityForResult(intent,0);
-    }
-
-    protected void decryption_btn(){
-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        intent.setType("*/*");
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        startActivityForResult(intent,1);
-    }
-
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (resultCode == Activity.RESULT_OK) {
-            Uri uri = data.getData();
-            final String path = getRealFilePath(getApplicationContext(), uri);
-            File targetFile = new File(path);
-            if (targetFile.isFile()){
-                if (requestCode == 0) {
-                    if(hasEncrypted(path)){
-                        Toast.makeText(getApplicationContext(), "This file has already been encrypted", 1).show();
-                        return;
-                    }
-
-                    AlertDialog.Builder bb = new AlertDialog.Builder(this);
-                    bb.setPositiveButton("OK", new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialogInterface, int i) {
-                            XorFile(path);
-                            renameToNewFile(path, encrypte_name(path));
-                            Toast.makeText(getApplicationContext(), "Done", 1).show();
-                        }
-                    });
-                    bb.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialogInterface, int i) {
-                            dialogInterface.dismiss();
-                        }
-                    });
-                    bb.setMessage("Encrpte file :\n" + path.substring(path.lastIndexOf('/') + 1) + " ?");
-                    bb.setTitle("Warnning");
-                    bb.show();
-
+                TextView textView = (TextView)findViewById(R.id.root);
+                String origin = textView.getText().toString();
+                File file = new File("/storage/emulated/0" + origin + "/" + map.get("name").toString());
+                if(file.isDirectory()){
+                    readRootFile("/storage/emulated/0" + origin + "/" + map.get("name"));
+                    textView.setText(origin + "/" + map.get("name"));
+                    rightDirectory = "";
                 }
                 else{
-                    if(!hasEncrypted(path)) {
-                        Toast.makeText(getApplicationContext(), "This file has not been encrypted yet", 1).show();
-                        return;
-                    }
-
-                    AlertDialog.Builder bb = new AlertDialog.Builder(this);
-                    bb.setPositiveButton("OK", new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialogInterface, int i) {
-                            String tgtName = decrypte_name(path);
-                            renameToNewFile(path, tgtName);
-                            XorFile(tgtName);
-                            Toast.makeText(getApplicationContext(), "Done", 1).show();
-                        }
-                    });
-                    bb.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialogInterface, int i) {
-                            dialogInterface.dismiss();
-                        }
-                    });
-                    bb.setMessage("Decrpte file :\n" + path.substring(path.lastIndexOf('/') + 1) + " ?");
-                    bb.setTitle("Warnning");
-                    bb.show();
-
+                    addToQueue("/storage/emulated/0" + origin + "/" + map.get("name"));
                 }
             }
-            else{
-                Toast.makeText(getApplicationContext(), "Not a file", 1).show();
+        });
+    }
+
+    private void setDrawerLock(){
+        DrawerLayout drawerLayout = (DrawerLayout)findViewById(R.id.drawer);
+        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED);
+    }
+
+    private void btnClickBundle(){
+        ImageButton btn1 = (ImageButton)findViewById(R.id.encrypte);
+        btn1.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                encryption_btn();
             }
+        });
+
+        ImageButton btn2 = (ImageButton)findViewById(R.id.decrypte);
+        btn2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                decryption_btn();
+            }
+        });
+
+        ImageButton add = (ImageButton)findViewById(R.id.add);
+        add.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                loadFile();
+            }
+        });
+
+        ImageButton remove = (ImageButton)findViewById(R.id.remove);
+        remove.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View view) {
+                queueList.clear();
+                queueAdapter.notifyDataSetChanged();
+            }
+        });
+
+        ImageButton selectall = (ImageButton)findViewById(R.id.selectall);
+        selectall.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View view) {
+                for(int i = 0; i < sideAdapter.getCount(); i++){
+                    LinearLayout father = (LinearLayout)sideFile.getAdapter().getView(i, null, null);
+                    TextView path = (TextView)father.findViewById(R.id.path);
+                    String fullname = path.getText().toString();
+                    File file = new File(fullname);
+                    if(!file.isDirectory()){
+                        addToQueue(fullname);
+                    }
+                }
+            }
+        });
+
+        ImageButton home = (ImageButton)findViewById(R.id.home);
+        home.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                readRootFile("/storage/emulated/0");
+                TextView textView = (TextView)findViewById(R.id.root);
+                textView.setText("");
+                rightDirectory = "";
+            }
+        });
+
+        ImageButton refresh = (ImageButton)findViewById(R.id.refresh);
+        refresh.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                TextView textView = (TextView)findViewById(R.id.root);
+                readRootFile("/storage/emulated/0" + textView.getText());
+            }
+        });
+
+        ImageButton right = (ImageButton)findViewById(R.id.right);
+        right.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                TextView textView = (TextView)findViewById(R.id.root);
+                String origin = textView.getText().toString();
+                if(rightDirectory.equals("")){
+                    readRootFile("/storage/emulated/0" + origin);
+                }
+                else if(rightDirectory.lastIndexOf("/") == 0){
+                    textView.setText(origin + rightDirectory);
+                    readRootFile("/storage/emulated/0" + origin + rightDirectory);
+                    rightDirectory = "";
+                }
+                else{
+                    String tmp = rightDirectory.substring(0, rightDirectory.indexOf("/", 1));
+                    textView.setText(origin + tmp);
+                    readRootFile("/storage/emulated/0" + origin + tmp);
+                    rightDirectory = rightDirectory.substring(rightDirectory.indexOf("/", 1));
+                }
+            }
+        });
+
+        ImageButton left = (ImageButton)findViewById(R.id.left);
+        left.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                TextView textView = (TextView)findViewById(R.id.root);
+                String origin = textView.getText().toString();
+                if(origin.equals("")){
+                }
+                else{
+                    readRootFile("/storage/emulated/0" + origin.substring(0, origin.lastIndexOf('/')));
+                    textView.setText(origin.substring(0, origin.lastIndexOf('/')));
+                    rightDirectory = origin.substring(origin.lastIndexOf('/')) + rightDirectory;
+                }
+            }
+        });
+    }
+
+    private void loadFile(){
+        DrawerLayout drawer = (DrawerLayout)findViewById(R.id.drawer);
+        drawer.openDrawer(Gravity.LEFT);
+        if(!firstReadFile) {
+            firstReadFile = true;
+            readRootFile("/storage/emulated/0");
         }
+    }
+
+    private void readRootFile(String root){
+        File path = new File(root);
+        if(path.exists()) {
+            File[] files = path.listFiles();
+            String[] filenames = new String[files.length];
+            String[] foldernames = new String[files.length];
+            int[] img = {
+                    R.drawable.folder,
+                    R.drawable.file,
+                    R.drawable.right
+            };
+
+            int filecnt = 0;
+            int foldercnt = 0;
+            for (File file : files) {
+                String filename = file.getName();
+                if(file.isDirectory()){
+                    String totpath = file.getAbsolutePath();
+                    filename = totpath.substring(totpath.lastIndexOf('/') + 1);
+                    foldernames[foldercnt] = filename;
+                    foldercnt++;
+                }
+                else{
+                    filenames[filecnt] = filename;
+                    filecnt++;
+                }
+            }
+            Arrays.sort(filenames, 0, filecnt);
+            Arrays.sort(foldernames, 0, foldercnt);
+
+            int cnt = foldercnt;
+            for (int i = 0; i < filecnt; i++){
+                foldernames[cnt] = filenames[i];
+                cnt++;
+            }
+
+            sideList.clear();
+            cnt = 0;
+            for(String str : foldernames){
+                Map<String, Object> item = new HashMap<String, Object>();
+                if(cnt < foldercnt){
+                    item.put("img", img[0]);
+                    item.put("img2", img[2]);
+                }
+                else{
+                    item.put("img", img[1]);
+                }
+                item.put("name", foldernames[cnt]);
+                item.put("path", root + "/" + foldernames[cnt]);
+                sideList.add(item);
+                cnt++;
+            }
+
+            sideAdapter.notifyDataSetChanged();
+        }
+    }
+
+    private void addToQueue(String path){
+        ListView queue = (ListView)findViewById(R.id.queue);
+        Map<String, Object> item = new HashMap<String, Object>();
+        String shortname = path.substring(path.lastIndexOf("/") + 1);
+        if(hasEncrypted(path)){
+            item.put("img", R.drawable.safe);
+        }
+        else{
+            item.put("img", R.drawable.danger);
+        }
+        item.put("name", shortname);
+        item.put("path", path);
+        if(!queueList.contains(item)){
+            queueList.add(item);
+            queueAdapter.notifyDataSetChanged();
+        }
+    }
+
+    private void encryption_btn(){
+        AlertDialog.Builder bb = new AlertDialog.Builder(this);
+        bb.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                for(int idx = 0; idx < queueAdapter.getCount(); idx++){
+                    LinearLayout father = (LinearLayout)queue.getAdapter().getView(idx, null, null);
+                    TextView path = (TextView)father.findViewById(R.id.path);
+                    String fullname = path.getText().toString();
+                    File file = new File(fullname);
+                    if(!file.isDirectory() && !hasEncrypted(fullname)){
+                        XorFile(fullname);
+                        renameToNewFile(fullname, encrypte_name(fullname));
+
+                        queueList.remove(idx);
+                        idx--;
+                    }
+                }
+                queueAdapter.notifyDataSetChanged();
+
+                ImageButton refresh = (ImageButton)findViewById(R.id.refresh);
+                refresh.callOnClick();
+            }
+        });
+        bb.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                dialogInterface.dismiss();
+            }
+        });
+        bb.setMessage("Encrypte these file?");
+        bb.setTitle("Warnning");
+        bb.show();
+
+    }
+
+    private void decryption_btn(){
+        AlertDialog.Builder bb = new AlertDialog.Builder(this);
+        bb.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                for(int idx = 0; idx < queueAdapter.getCount(); idx++){
+                    LinearLayout father = (LinearLayout)queue.getAdapter().getView(idx, null, null);
+                    TextView path = (TextView)father.findViewById(R.id.path);
+                    String fullname = path.getText().toString();
+                    File file = new File(fullname);
+                    if(!file.isDirectory() && hasEncrypted(fullname)){
+                        String tgtName = decrypte_name(fullname);
+                        renameToNewFile(fullname, tgtName);
+                        XorFile(tgtName);
+
+                        queueList.remove(idx);
+                        idx--;
+                    }
+                }
+                queueAdapter.notifyDataSetChanged();
+
+                ImageButton refresh = (ImageButton)findViewById(R.id.refresh);
+                refresh.callOnClick();
+            }
+        });
+        bb.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                dialogInterface.dismiss();
+            }
+        });
+        bb.setMessage("Decrypte these file?");
+        bb.setTitle("Warnning");
+        bb.show();
+
     }
 
     protected String getRealFilePath(Context context, Uri uri) {
@@ -200,7 +398,7 @@ public class MainActivity extends AppCompatActivity {
         return data;
     }
 
-    protected boolean hasEncrypted(String path) {
+    private boolean hasEncrypted(String path) {
         String srcName = path.substring(path.lastIndexOf('/') + 1);
         if(srcName.contains("_")) {
             String suffix = srcName.substring(srcName.lastIndexOf('_') + 1);
@@ -210,7 +408,7 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
 
-    protected String encrypte_name(String path) {
+    private String encrypte_name(String path) {
         String newName = path.substring(path.lastIndexOf('/') + 1);
         String tp = "";
         if(newName.contains(".")){
@@ -225,7 +423,7 @@ public class MainActivity extends AppCompatActivity {
         return path.substring(0, path.lastIndexOf('/') + 1) + newName;
     }
 
-    protected String decrypte_name(String path) {
+    private String decrypte_name(String path) {
         String newName = path.substring(path.lastIndexOf('/') + 1);
         String tp = newName.substring(newName.lastIndexOf('_') + 1);
         tp = tp.substring(2, tp.length() - 4);
@@ -243,12 +441,12 @@ public class MainActivity extends AppCompatActivity {
         return path.substring(0, path.lastIndexOf('/') + 1) + newName;
     }
 
-    protected void renameToNewFile(String src, String dest) {
+    private void renameToNewFile(String src, String dest) {
         File srcDir = new File(src);
         srcDir.renameTo(new File(dest));
     }
 
-    protected void XorFile(String path){
+    private void XorFile(String path){
         try {
             File tgtFile = new File(path);
             int cnt = 20 + (path.length() % 30);
@@ -270,4 +468,5 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(getApplicationContext(), "Exception", 1).show();
         }
     }
+
 }

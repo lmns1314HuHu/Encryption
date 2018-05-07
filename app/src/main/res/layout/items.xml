@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="horizontal" >
+    
+    <LinearLayout 
+            android:layout_width="match_parent" 
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+        <ImageView
+                android:id="@+id/image"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                android:adjustViewBounds="true"
+                android:scaleType="centerInside"
+                android:maxHeight="72dp"
+                android:maxWidth="72dp"
+                android:paddingBottom="13dp"
+                android:paddingRight="10px"
+                android:paddingLeft="10px"
+                android:paddingTop="13dp" />
+
+        <TextView
+                android:id="@+id/title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:padding="10px" />
+
+        <TextView
+                android:id="@+id/path"
+                android:visibility="gone"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+    </LinearLayout>
+
+    <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_weight="6">
+        <ImageView
+                android:id="@+id/imageright"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                android:adjustViewBounds="true"
+                android:scaleType="centerInside"
+                android:maxHeight="72dp"
+                android:maxWidth="72dp"
+                android:gravity="right"
+                android:paddingBottom="13dp"
+                android:paddingEnd="10px"
+                android:paddingTop="13dp"/>
+    </LinearLayout>
+</LinearLayout>
